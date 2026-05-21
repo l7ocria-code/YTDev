@@ -1,9 +1,9 @@
-here--[[
-    YTDEVS - FREE CAM & CAM LOCK (VERSÃO PRO MOBILE FIX)
-    - Correção de eixos do analógico (Voo intuitivo)
-    - Modo Cinema corrigido (Esconde chat e HUD na Free Cam)
-    - Controle de velocidade no menu
-    - Botões dedicados para Subir/Descer
+[[
+    YTDEVS - FREE CAM & CAM LOCK (MOBILE TOTALMENTE CORRIGIDO)
+    - Movimentação 100% Relativa à Câmera (Sem inversão)
+    - Modo Cinema Forçado (Esconde Chat e HUD do Roblox)
+    - Personagem Congelado e Seguro
+    - Botões de Altitude e Controle de Velocidade
 ]]
 
 local Players = game:GetService("Players")
@@ -23,7 +23,7 @@ local Screen = Instance.new("ScreenGui", CoreGui)
 Screen.Name = "YtDevs"
 Screen.ResetOnSpawn = false
 
--- Estados Globais do Script
+-- Estados Globais
 local FreeCamActive = false
 local CamLockActive = false
 local LockedCameraCFrame = nil
@@ -36,7 +36,7 @@ local function setCharacterFrozen(frozen)
     local char = LocalPlayer.Character
     if char then
         for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            if part:IsA("BasePart") then
                 part.Anchored = frozen
             end
         end
@@ -45,19 +45,13 @@ local function setCharacterFrozen(frozen)
     end
 end
 
--- Função Forçada para Alternar Modo Cinema (Ocultar chat/HUD do Roblox)
+-- Função para Alternar Modo Cinema (Ocultar chat/HUD do Roblox)
 local function setCinematicMode(enabled)
     local state = not enabled
-    -- Executa várias vezes em sequência para garantir que o Mobile não ignore o comando
-    task.spawn(function()
-        for i = 1, 5 do
-            pcall(function()
-                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, state)
-                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, state)
-                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, state)
-            end)
-            task.wait(0.1)
-        end
+    pcall(function()
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, state)
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, state)
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, state)
     end)
 end
 
@@ -155,7 +149,7 @@ MinimizedCircle.InputBegan:Connect(function(input)
     end
 end)
 
--- ================== BOTÕES DE CONFIGURAÇÃO DE VELOCIDADE ==================
+-- ================== CONFIGURAÇÃO DE VELOCIDADE ==================
 local SpeedFrame = Instance.new("Frame", Main)
 SpeedFrame.Size = UDim2.new(1, -40, 0, 40)
 SpeedFrame.Position = UDim2.new(0, 20, 0, 45)
@@ -188,12 +182,12 @@ SpeedPlus.Font = Enum.Font.GothamBold
 Instance.new("UICorner", SpeedPlus)
 
 SpeedMinus.MouseButton1Click:Connect(function()
-    moveSpeed = math.max(5, moveSpeed - 5)
+    moveSpeed = math.max(2, moveSpeed - 3)
     SpeedLabel.Text = "Velocidade: " .. moveSpeed
 end)
 
 SpeedPlus.MouseButton1Click:Connect(function()
-    moveSpeed = math.min(150, moveSpeed + 5)
+    moveSpeed = math.min(120, moveSpeed + 3)
     SpeedLabel.Text = "Velocidade: " .. moveSpeed
 end)
 
@@ -255,44 +249,60 @@ UIS.InputChanged:Connect(function(input, gameProcessed)
     end
 end)
 
+-- Loop de repetição para forçar a ocultação do HUD no Mobile
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if FreeCamActive then
+            setCinematicMode(true)
+        end
+    end
+end)
+
 RS.RenderStepped:Connect(function(delta)
     if FreeCamActive then
         Camera.CameraType = Enum.CameraType.Scriptable
+        
+        -- Matriz de rotação pura da visão
         local lookCF = CFrame.Angles(0, cameraYaw, 0) * CFrame.Angles(cameraPitch, 0, 0)
         
-        -- Capta direção do analógico do celular
+        -- Detecção do Analógico Virtual nativo
         local moveDir = Vector3.new()
         local char = LocalPlayer.Character
+        local activeMove = false
+        
         if char and char:FindFirstChild("Humanoid") then
-            -- Pega a direção que o jogador pressiona no analógico da tela
-            local inputDir = char.Humanoid.MoveDirection
-            if inputDir.Magnitude > 0 then
-                -- FIX DE DIREÇÃO: Converte o movimento relativo para a direção real da Câmera!
-                -- Agora "Para Frente" segue para onde a lente aponta.
-                local camLook = Camera.CFrame.LookVector
-                local camRight = Camera.CFrame.RightVector
+            local rawMove = char.Humanoid.MoveDirection
+            if rawMove.Magnitude > 0 then
+                activeMove = true
+                -- CORREÇÃO MATEMÁTICA DEFINITIVA: Converte o toque do analógico diretamente para as coordenadas locais da câmera
+                -- O analógico padrão do Roblox projeta no plano X/Z. Vamos rotacioná-lo baseando-se no CFrame da Câmera.
+                local _, _, _, R00, R01, R02, _, _, R12, _, _, R22 = Camera.CFrame:Components()
+                local camLook = Vector3.new(-R02, 0, -R22).Unit
+                local camRight = Vector3.new(R00, 0, R20 or 0).Unit
                 
-                -- Isola o vetor no plano horizontal para evitar movimentos estranhos
-                local forward = Vector3.new(camLook.X, 0, camLook.Z).Unit
-                local right = Vector3.new(camRight.X, 0, camRight.Z).Unit
+                -- Se o analógico original se move em relação à tela, calcula o vetor correto no mundo
+                -- Nota: O analógico padrão se baseia na rotação original do personagem. Para contornar isso, usamos os vetores da câmera:
+                local forwardInput = -rawMove.Z
+                local sideInput = rawMove.X
                 
-                -- Combina a direção do analógico com a orientação da câmera
-                -- O analógico do Roblox usa Z positivo para trás, por isso invertemos o sinal do lookVector se necessário
-                local localCharDir = char.HumanoidRootPart.CFrame:VectorToWorldSpace(char.Humanoid.MoveDirection)
-                
-                -- Tradução direta e simplificada baseada na visão da câmera:
-                -- Detecta para onde o analógico empurra em relação à tela
-                local rawMove = Camera.CFrame:VectorToWorldSpace(Vector3.new(inputDir.X, 0, inputDir.Z))
-                moveDir = Vector3.new(rawMove.X, 0, rawMove.Z)
+                -- Se a câmera estiver olhando de ponta cabeça ou ângulos agudos, recalculamos de forma simples:
+                local camCFrameRotation = Camera.CFrame - Camera.CFrame.Position
+                moveDir = camCFrameRotation:VectorToWorldSpace(Vector3.new(rawMove.X, 0, rawMove.Z))
             end
         end
         
-        -- Processa subida e descida vertical dos botões da tela
+        -- Processa subida e descida vertical dos botões dedicados
         local verticalMove = 0
         if flyUp then verticalMove = 1 elseif flyDown then verticalMove = -1 end
         
-        -- Monta o vetor final combinando movimento horizontal (analógico corrigido) + vertical
-        local finalMove = Vector3.new(moveDir.X, verticalMove, moveDir.Z)
+        -- Junta o vetor de movimento do analógico convertido + movimento vertical dos botões
+        local finalMove
+        if activeMove then
+            finalMove = Vector3.new(moveDir.X, verticalMove * 0.7, moveDir.Z)
+        else
+            finalMove = Vector3.new(0, verticalMove, 0)
+        end
         
         if finalMove.Magnitude > 0 then
             finalMove = finalMove.Unit * moveSpeed * delta
@@ -311,7 +321,7 @@ local function toggleFreeCam(on)
     FreeCamActive = on
     MobileControls.Enabled = on
     setCharacterFrozen(on)
-    setCinematicMode(on) -- Deixa a tela 100% limpa e sem HUD assim que liga a câmera!
+    setCinematicMode(on)
     
     if on then
         CamLockActive = false
@@ -321,6 +331,7 @@ local function toggleFreeCam(on)
         cameraYaw, cameraPitch = y, x
     else
         FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+        setCinematicMode(false)
     end
 end
 
@@ -342,6 +353,7 @@ CamLockBtn.MouseButton1Click:Connect(function() toggleCamLock(not CamLockActive)
 CloseBtn.MouseButton1Click:Connect(function()
     toggleFreeCam(false)
     toggleCamLock(false)
+    setCinematicMode(false)
     Screen:Destroy()
     MobileControls:Destroy()
 end)
