@@ -1,4 +1,4 @@
-e--[[ YTDEVS MOBILE - PARTE 1/3 ]]
+here--[[ YTDEVS MOBILE - PARTE 1/3 ]]
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -8,15 +8,23 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
+-- Limpa versão anterior
+if _G.YTDevs then
+    if _G.YTDevs.Screen then _G.YTDevs.Screen:Destroy() end
+    if _G.YTDevs.ControlScreen then _G.YTDevs.ControlScreen:Destroy() end
+    _G.YTDevs = nil
+end
 if CoreGui:FindFirstChild("YtDevs") then CoreGui.YtDevs:Destroy() end
 if CoreGui:FindFirstChild("YtDevsFreeCam") then CoreGui.YtDevsFreeCam:Destroy() end
 
-local Screen = Instance.new("ScreenGui", CoreGui)
-Screen.Name = "YtDevs"
-Screen.ResetOnSpawn = false
-Screen.IgnoreGuiInset = true
+-- Tabela global compartilhada
+_G.YTDevs = {
+    FreeCamActive = false,
+    CamLockActive = false,
+    LockedCameraCFrame = nil
+}
 
--- Função de arraste
+-- Função de arraste (touch)
 local function MakeDraggable(obj)
     local dragging, startPos, dragStart
     obj.InputBegan:Connect(function(input)
@@ -39,7 +47,14 @@ local function MakeDraggable(obj)
     end)
 end
 
--- Janela principal quadrada
+-- ScreenGui principal
+local Screen = Instance.new("ScreenGui", CoreGui)
+Screen.Name = "YtDevs"
+Screen.ResetOnSpawn = false
+Screen.IgnoreGuiInset = true
+_G.YTDevs.Screen = Screen
+
+-- Janela principal
 local Main = Instance.new("Frame", Screen)
 Main.Size = UDim2.new(0, 280, 0, 280)
 Main.Position = UDim2.new(0.5, -140, 0.4, -140)
@@ -51,7 +66,9 @@ local Stroke = Instance.new("UIStroke", Main)
 Stroke.Color = Color3.fromRGB(255, 255, 255)
 Stroke.Thickness = 1.5
 MakeDraggable(Main)
+_G.YTDevs.Main = Main
 
+-- Título
 local Title = Instance.new("TextLabel", Main)
 Title.Size = UDim2.new(1, 0, 0, 35)
 Title.Text = "YTDEVS"
@@ -61,6 +78,7 @@ Title.TextSize = 20
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
 Title.BorderSizePixel = 0
 
+-- Botão Fechar (X)
 local CloseBtn = Instance.new("TextButton", Main)
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -35, 0, 2)
@@ -74,9 +92,11 @@ Instance.new("UICorner", CloseBtn)
 
 CloseBtn.MouseButton1Click:Connect(function()
     Screen:Destroy()
-    if CoreGui:FindFirstChild("YtDevsFreeCam") then CoreGui.YtDevsFreeCam:Destroy() end
+    if _G.YTDevs.ControlScreen then _G.YTDevs.ControlScreen:Destroy() end
+    _G.YTDevs = nil
 end)
 
+-- Botão Minimizar (-)
 local MinBtn = Instance.new("TextButton", Main)
 MinBtn.Size = UDim2.new(0, 30, 0, 30)
 MinBtn.Position = UDim2.new(1, -70, 0, 2)
@@ -107,6 +127,7 @@ CircleLabel.Font = Enum.Font.GothamBlack
 CircleLabel.TextSize = 24
 CircleLabel.BackgroundTransparency = 1
 MakeDraggable(MinimizedCircle)
+_G.YTDevs.MinimizedCircle = MinimizedCircle
 
 local isRestoring = false
 MinBtn.MouseButton1Click:Connect(function()
@@ -123,7 +144,7 @@ MinimizedCircle.InputBegan:Connect(function(input)
         connection = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 local delta = (input.Position - startPos).Magnitude
-                if delta < 10 then -- toque quase sem movimento = clique
+                if delta < 10 then
                     Main.Position = MinimizedCircle.Position
                     MinimizedCircle.Visible = false
                     Main.Visible = true
@@ -135,6 +156,7 @@ MinimizedCircle.InputBegan:Connect(function(input)
     end
 end)
 
+-- Botões principais
 local FreeCamBtn = Instance.new("TextButton", Main)
 FreeCamBtn.Size = UDim2.new(1, -40, 0, 60)
 FreeCamBtn.Position = UDim2.new(0, 20, 0, 50)
@@ -145,6 +167,7 @@ FreeCamBtn.Font = Enum.Font.GothamBold
 FreeCamBtn.TextSize = 16
 FreeCamBtn.BorderSizePixel = 0
 Instance.new("UICorner", FreeCamBtn)
+_G.YTDevs.FreeCamBtn = FreeCamBtn
 
 local CamLockBtn = Instance.new("TextButton", Main)
 CamLockBtn.Size = UDim2.new(1, -40, 0, 60)
@@ -155,66 +178,83 @@ CamLockBtn.TextColor3 = Color3.new(1, 1, 1)
 CamLockBtn.Font = Enum.Font.GothamBold
 CamLockBtn.TextSize = 16
 CamLockBtn.BorderSizePixel = 0
-Instance.new("UICorner", CamLockBtn)--[[ PARTE 2/3 ]]
+Instance.new("UICorner", CamLockBtn)
+_G.YTDevs.CamLockBtn = CamLockBtn--[[ PARTE 2/3 ]]
 
-local FreeCamActive = false
-local CamLockActive = false
-local LockedCameraCFrame = nil
+local YT = _G.YTDevs
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
 local function activateFreeCam()
-    FreeCamActive = true
-    CamLockActive = false
+    YT.FreeCamActive = true
+    YT.CamLockActive = false
     Camera.CameraType = Enum.CameraType.Scriptable
-    Main.Visible = false
-    MinimizedCircle.Visible = false
-    FreeCamBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    CamLockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    YT.Main.Visible = false
+    YT.MinimizedCircle.Visible = false
+    YT.FreeCamBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    YT.CamLockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    if YT.ControlScreen then YT.ControlScreen.Enabled = true end
 end
 
-local function deactivateFreeCam()
-    FreeCamActive = false
+function _G.YTDevs_DeactivateFreeCam()
+    YT.FreeCamActive = false
     Camera.CameraType = Enum.CameraType.Custom
-    Main.Visible = true
-    FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-    if CoreGui:FindFirstChild("YtDevsFreeCam") then
-        CoreGui.YtDevsFreeCam.Enabled = false
-    end
+    YT.Main.Visible = true
+    YT.FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    if YT.ControlScreen then YT.ControlScreen.Enabled = false end
 end
 
 local function activateCamLock()
-    CamLockActive = true
-    FreeCamActive = false
+    YT.CamLockActive = true
+    YT.FreeCamActive = false
     Camera.CameraType = Enum.CameraType.Scriptable
-    LockedCameraCFrame = Camera.CFrame
-    CamLockBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    YT.LockedCameraCFrame = Camera.CFrame
+    YT.CamLockBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    YT.FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
 end
 
 local function deactivateCamLock()
-    CamLockActive = false
+    YT.CamLockActive = false
     Camera.CameraType = Enum.CameraType.Custom
-    LockedCameraCFrame = nil
-    CamLockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    YT.LockedCameraCFrame = nil
+    YT.CamLockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
 end
 
-FreeCamBtn.MouseButton1Click:Connect(function()
-    if FreeCamActive then deactivateFreeCam() else activateFreeCam() end
+YT.FreeCamBtn.MouseButton1Click:Connect(function()
+    if YT.FreeCamActive then
+        _G.YTDevs_DeactivateFreeCam()
+    else
+        activateFreeCam()
+    end
 end)
 
-CamLockBtn.MouseButton1Click:Connect(function()
-    if CamLockActive then deactivateCamLock() else activateCamLock() end
+YT.CamLockBtn.MouseButton1Click:Connect(function()
+    if YT.CamLockActive then
+        deactivateCamLock()
+    else
+        activateCamLock()
+    end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function()
-    if FreeCamActive then deactivateFreeCam() end
-    if CamLockActive then deactivateCamLock() end
+    if YT.FreeCamActive then _G.YTDevs_DeactivateFreeCam() end
+    if YT.CamLockActive then deactivateCamLock() end
 end)--[[ PARTE 3/3 ]]
 
+local YT = _G.YTDevs
+local UIS = game:GetService("UserInputService")
+local RS = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Camera = workspace.CurrentCamera
+
+-- Tela de controles
 local ControlScreen = Instance.new("ScreenGui", CoreGui)
 ControlScreen.Name = "YtDevsFreeCam"
 ControlScreen.ResetOnSpawn = false
 ControlScreen.IgnoreGuiInset = true
 ControlScreen.Enabled = false
+YT.ControlScreen = ControlScreen
 
 -- Joystick esquerdo (movimento)
 local joystickBase = Instance.new("Frame", ControlScreen)
@@ -327,7 +367,7 @@ upBtn.TouchEnded:Connect(function() altitudeUp = false end)
 downBtn.TouchBegan:Connect(function() altitudeDown = true end)
 downBtn.TouchEnded:Connect(function() altitudeDown = false end)
 
--- Botão sair
+-- Botão sair da Free Cam
 local exitBtn = Instance.new("TextButton", ControlScreen)
 exitBtn.Size = UDim2.new(0, 40, 0, 40)
 exitBtn.Position = UDim2.new(1, -50, 0, 10)
@@ -340,16 +380,16 @@ exitBtn.BorderSizePixel = 0
 Instance.new("UICorner", exitBtn).CornerRadius = UDim.new(1, 0)
 
 exitBtn.MouseButton1Click:Connect(function()
-    deactivateFreeCam()
+    _G.YTDevs_DeactivateFreeCam()
     ControlScreen.Enabled = false
 end)
 
--- Loop da câmera
+-- Loop de atualização da câmera
 local moveSpeed = 30
 local lookSensitivity = 3
 
 RS.RenderStepped:Connect(function(dt)
-    if FreeCamActive then
+    if YT.FreeCamActive then
         ControlScreen.Enabled = true
         local cam = Camera
         if not cam then return end
@@ -369,11 +409,11 @@ RS.RenderStepped:Connect(function(dt)
             moveDir = moveDir.Unit * moveSpeed * dt
         end
         cam.CFrame = CFrame.new(newCF.Position + moveDir, newCF.Position + moveDir + newCF.LookVector)
-    elseif CamLockActive then
+    elseif YT.CamLockActive then
         ControlScreen.Enabled = false
         Camera.CameraType = Enum.CameraType.Scriptable
-        if LockedCameraCFrame then
-            Camera.CFrame = LockedCameraCFrame
+        if YT.LockedCameraCFrame then
+            Camera.CFrame = YT.LockedCameraCFrame
         end
     else
         ControlScreen.Enabled = false
