@@ -1,7 +1,6 @@
-here--[[
-    YTDEVS - FREE CAM & CAM LOCK (VERSÃO MOBILE ADAPTADA)
-    GUI quadrada, minimizável (círculo "YT"), arrastável.
-    Controles da Free Cam adaptados para a tela Touch do celular.
+--[[
+    YTDEVS - FREE CAM & CAM LOCK
+    GUI quadrada, minimizável (círculo "YT"), arrastável
 ]]
 
 -- Serviços
@@ -53,7 +52,7 @@ Main.Size = UDim2.new(0, 280, 0, 280)
 Main.Position = UDim2.new(0.5, -140, 0.3, 0)
 Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 Main.BorderSizePixel = 0
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)  -- levemente arredondada, mas quadrada
 Main.ClipsDescendants = true
 
 local Stroke = Instance.new("UIStroke", Main)
@@ -92,7 +91,7 @@ end)
 local MinBtn = Instance.new("TextButton", Main)
 MinBtn.Size = UDim2.new(0, 30, 0, 30)
 MinBtn.Position = UDim2.new(1, -70, 0, 2)
-MinBtn.Text = "—"
+MinBtn.Text = "-"
 MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
 MinBtn.TextColor3 = Color3.new(1, 1, 1)
 MinBtn.Font = Enum.Font.GothamBold
@@ -103,10 +102,10 @@ Instance.new("UICorner", MinBtn)
 -- ================== CÍRCULO MINIMIZADO ==================
 local MinimizedCircle = Instance.new("Frame", Screen)
 MinimizedCircle.Size = UDim2.new(0, 60, 0, 60)
-MinimizedCircle.Position = Main.Position
+MinimizedCircle.Position = Main.Position + UDim2.new(0, 0, 0, 0)  -- mesma posição inicial
 MinimizedCircle.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 MinimizedCircle.BorderSizePixel = 0
-Instance.new("UICorner", MinimizedCircle).CornerRadius = UDim.new(1, 0)
+Instance.new("UICorner", MinimizedCircle).CornerRadius = UDim.new(1, 0)  -- círculo perfeito
 MinimizedCircle.Visible = false
 
 local CircleStroke = Instance.new("UIStroke", MinimizedCircle)
@@ -132,7 +131,8 @@ end)
 
 MinimizedCircle.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        task.wait(0.1)
+        -- Verifica se foi um clique simples (sem arraste prolongado)
+        wait(0.1)
         Main.Position = MinimizedCircle.Position
         MinimizedCircle.Visible = false
         Main.Visible = true
@@ -164,54 +164,64 @@ CamLockBtn.TextSize = 16
 CamLockBtn.BorderSizePixel = 0
 Instance.new("UICorner", CamLockBtn)
 
--- ================== LÓGICA MOBILE ADAPTADA ==================
+-- ================== LÓGICA DAS CÂMERAS ==================
 local FreeCamActive = false
 local CamLockActive = false
 local LockedCameraCFrame = nil
 
+-- Movimento da Free Cam
+local moveVector = Vector3.new()
+local keys = {W = false, A = false, S = false, D = false, Space = false, LShift = false}
+local mouseSensitivity = 0.5
 local moveSpeed = 40
-local touchLookSensitivity = 0.4
 
--- Variáveis para rotação da câmera via Touch
-local cameraYaw = 0
-local cameraPitch = 0
+UIS.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.W then keys.W = true
+    elseif input.KeyCode == Enum.KeyCode.A then keys.A = true
+    elseif input.KeyCode == Enum.KeyCode.S then keys.S = true
+    elseif input.KeyCode == Enum.KeyCode.D then keys.D = true
+    elseif input.KeyCode == Enum.KeyCode.Space then keys.Space = true
+    elseif input.KeyCode == Enum.KeyCode.LeftShift then keys.LShift = true
+    end
+end)
 
--- Captura o movimento de arrastar o dedão direito para olhar ao redor
-UIS.InputChanged:Connect(function(input)
-    if FreeCamActive and input.UserInputType == Enum.UserInputType.Touch then
-        if input.Delta.Magnitude > 0 then
-            -- Aplica a rotação baseada no movimento do arrastar de tela
-            cameraYaw = cameraYaw - (input.Delta.X * touchLookSensitivity * 0.05)
-            cameraPitch = cameraPitch - (input.Delta.Y * touchLookSensitivity * 0.05)
-            
-            -- Limita o ângulo vertical para a câmera não dar uma cambalhota (360º vertical)
-            cameraPitch = math.clamp(cameraPitch, -math.rad(80), math.rad(80))
-        end
+UIS.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then keys.W = false
+    elseif input.KeyCode == Enum.KeyCode.A then keys.A = false
+    elseif input.KeyCode == Enum.KeyCode.S then keys.S = false
+    elseif input.KeyCode == Enum.KeyCode.D then keys.D = false
+    elseif input.KeyCode == Enum.KeyCode.Space then keys.Space = false
+    elseif input.KeyCode == Enum.KeyCode.LeftShift then keys.LShift = false
     end
 end)
 
 -- Atualiza câmera a cada frame
 RS.RenderStepped:Connect(function(delta)
     if FreeCamActive then
-        Camera.CameraType = Enum.CameraType.Scriptable
-        
-        -- Calcula a nova rotação da câmera baseada nos arrastes salvos
-        local rotationCF = CFrame.Angles(0, cameraYaw, 0) * CFrame.Angles(cameraPitch, 0, 0)
-        
-        -- MOBILE FIX: Pega a direção do analógico virtual do Roblox de forma nativa
-        local moveDirection = Vector3.new(0, 0, 0)
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") then
-            moveDirection = char.Humanoid.MoveDirection
+        local cam = Camera
+        if not cam then return end
+        cam.CameraType = Enum.CameraType.Scriptable
+        -- Orientação pelo mouse
+        local mouseDelta = UIS:GetMouseDelta()
+        local currentCF = cam.CFrame
+        local rotX = currentCF.Rotation - currentCF.Rotation:ToEulerAnglesYXZ()
+        -- Simples: multiplicar por rotação com base no mouse
+        local yaw = mouseDelta.X * mouseSensitivity * 0.02
+        local pitch = mouseDelta.Y * mouseSensitivity * 0.02
+        local newCF = currentCF * CFrame.Angles(0, -yaw, 0) * CFrame.Angles(-pitch, 0, 0)
+        -- Movimento WASD
+        local moveDir = Vector3.new()
+        if keys.W then moveDir += newCF.LookVector end
+        if keys.S then moveDir -= newCF.LookVector end
+        if keys.A then moveDir -= newCF.RightVector end
+        if keys.D then moveDir += newCF.RightVector end
+        if keys.Space then moveDir += Vector3.new(0, 1, 0) end
+        if keys.LShift then moveDir += Vector3.new(0, -1, 0) end
+        if moveDir.Magnitude > 0 then
+            moveDir = moveDir.Unit * moveSpeed * delta
         end
-        
-        -- Multiplica a direção do movimento pela velocidade do drone
-        local moveVector = moveDirection * moveSpeed * delta
-        
-        -- Se o jogador estiver usando o analógico, ele voará para onde a câmera está apontada
-        local currentPosition = Camera.CFrame.Position
-        Camera.CFrame = CFrame.new(currentPosition + moveVector) * rotationCF
-        
+        cam.CFrame = CFrame.new(newCF.Position + moveDir, newCF.Position + moveDir + newCF.LookVector)
     elseif CamLockActive then
         Camera.CameraType = Enum.CameraType.Scriptable
         if LockedCameraCFrame then
@@ -222,25 +232,21 @@ RS.RenderStepped:Connect(function(delta)
     end
 end)
 
--- Desativa ao morrer / resetar personagem
+-- Desativa ao fechar / morrer (opcional, mas seguro)
 LocalPlayer.CharacterAdded:Connect(function()
+    -- Se a câmera estiver lockada, não reposiciona automaticamente
     if not FreeCamActive and not CamLockActive then
         Camera.CameraType = Enum.CameraType.Custom
     end
 end)
 
--- Funções alternadoras (Toggles)
+-- Função para desativar a outra câmera
 local function toggleFreeCam(on)
     FreeCamActive = on
     if on then
         CamLockActive = false
         CamLockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
         FreeCamBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-        
-        -- Sincroniza a rotação inicial com o ângulo atual que o jogador estava olhando
-        local x, y, z = Camera.CFrame:ToEulerAnglesYXZ()
-        cameraYaw = y
-        cameraPitch = x
     else
         FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
     end
@@ -252,6 +258,7 @@ local function toggleCamLock(on)
         FreeCamActive = false
         FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
         CamLockBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        -- Captura a posição atual da câmera para congelar
         LockedCameraCFrame = Camera.CFrame
     else
         CamLockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
@@ -259,18 +266,11 @@ local function toggleCamLock(on)
     end
 end
 
--- Conecta os botões da interface
+-- Conecta os botões
 FreeCamBtn.MouseButton1Click:Connect(function()
     toggleFreeCam(not FreeCamActive)
 end)
 
 CamLockBtn.MouseButton1Click:Connect(function()
     toggleCamLock(not CamLockActive)
-end)
-
--- Limpeza total ao destruir a interface
-Screen.Destroying:Connect(function()
-    FreeCamActive = false
-    CamLockActive = false
-    Camera.CameraType = Enum.CameraType.Custom
 end)
