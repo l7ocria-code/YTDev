@@ -1,28 +1,24 @@
-here--[[ YTDEVS - PARTE 1/3 (GUI) ]]
-
-local Players = game:GetService("Players")
+herelocal Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
-local TS = game:GetService("TweenService")
-local RS = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
+
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Limpeza
-if CoreGui:FindFirstChild("YtDevs") then CoreGui.YtDevs:Destroy() end
-if CoreGui:FindFirstChild("YtDevsFreeCam") then CoreGui.YtDevsFreeCam:Destroy() end
+local TargetGui = LocalPlayer:WaitForChild("PlayerGui")
+if pcall(function() return CoreGui.Name end) then TargetGui = CoreGui end
 
--- Tabela global compartilhada (mesma estrutura anterior)
+if TargetGui:FindFirstChild("YtDevs") then TargetGui.YtDevs:Destroy() end
+
 _G.YTDevs = {
     FreeCamActive = false,
     FreezeCamActive = false,
     freeCamConnection = nil,
-    cameraSpeed = 50
+    cameraSpeed = 40,
+    MoveVector = Vector3.new(0, 0, 0)
 }
-
 local YT = _G.YTDevs
 
--- Função de arraste (touch)
 local function MakeDraggable(obj)
     local dragging, startPos, dragStart
     obj.InputBegan:Connect(function(input)
@@ -31,9 +27,7 @@ local function MakeDraggable(obj)
             dragStart = input.Position
             startPos = obj.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
@@ -45,38 +39,29 @@ local function MakeDraggable(obj)
     end)
 end
 
--- ScreenGui
-local Screen = Instance.new("ScreenGui", CoreGui)
+local Screen = Instance.new("ScreenGui", TargetGui)
 Screen.Name = "YtDevs"
 Screen.ResetOnSpawn = false
 Screen.IgnoreGuiInset = true
-YT.Screen = Screen
 
--- Janela principal (quadrada)
 local Main = Instance.new("Frame", Screen)
-Main.Size = UDim2.new(0, 280, 0, 280)
-Main.Position = UDim2.new(0.5, -140, 0.4, -140)
+Main.Size = UDim2.new(0, 280, 0, 240)
+Main.Position = UDim2.new(0.5, -140, 0.4, -120)
 Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-Main.BorderSizePixel = 0
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
-Main.ClipsDescendants = true
 local Stroke = Instance.new("UIStroke", Main)
-Stroke.Color = Color3.fromRGB(255, 255, 255)
+Stroke.Color = Color3.fromRGB(255, 0, 0)
 Stroke.Thickness = 1.5
 MakeDraggable(Main)
-YT.Main = Main
 
--- Título
 local Title = Instance.new("TextLabel", Main)
 Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "YTDEVS"
+Title.Text = "YTDEVS MOBILE"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 20
+Title.TextSize = 16
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-Title.BorderSizePixel = 0
 
--- Botão Fechar (X)
 local CloseBtn = Instance.new("TextButton", Main)
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -35, 0, 2)
@@ -84,37 +69,21 @@ CloseBtn.Text = "X"
 CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
 CloseBtn.TextColor3 = Color3.new(1, 1, 1)
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 14
-CloseBtn.BorderSizePixel = 0
 Instance.new("UICorner", CloseBtn)
 
-CloseBtn.MouseButton1Click:Connect(function()
-    -- Reseta câmera se ativa
-    if YT.FreezeCamActive or YT.FreeCamActive then
-        _G.YTDevs_ResetCamera()
-    end
-    Screen:Destroy()
-    _G.YTDevs = nil
-end)
-
--- Botão Minimizar (-)
 local MinBtn = Instance.new("TextButton", Main)
 MinBtn.Size = UDim2.new(0, 30, 0, 30)
 MinBtn.Position = UDim2.new(1, -70, 0, 2)
-MinBtn.Text = "-"
+MinBtn.Text = "—"
 MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
 MinBtn.TextColor3 = Color3.new(1, 1, 1)
 MinBtn.Font = Enum.Font.GothamBold
-MinBtn.TextSize = 18
-MinBtn.BorderSizePixel = 0
 Instance.new("UICorner", MinBtn)
 
--- Círculo minimizado
 local MinimizedCircle = Instance.new("Frame", Screen)
 MinimizedCircle.Size = UDim2.new(0, 60, 0, 60)
 MinimizedCircle.Position = Main.Position
-MinimizedCircle.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-MinimizedCircle.BorderSizePixel = 0
+MinimizedCircle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 Instance.new("UICorner", MinimizedCircle).CornerRadius = UDim.new(1, 0)
 MinimizedCircle.Visible = false
 local CircleStroke = Instance.new("UIStroke", MinimizedCircle)
@@ -125,10 +94,9 @@ CircleLabel.Size = UDim2.new(1, 0, 1, 0)
 CircleLabel.Text = "YT"
 CircleLabel.TextColor3 = Color3.new(1, 1, 1)
 CircleLabel.Font = Enum.Font.GothamBlack
-CircleLabel.TextSize = 24
+CircleLabel.TextSize = 22
 CircleLabel.BackgroundTransparency = 1
 MakeDraggable(MinimizedCircle)
-YT.MinimizedCircle = MinimizedCircle
 
 local isRestoring = false
 MinBtn.MouseButton1Click:Connect(function()
@@ -157,135 +125,138 @@ MinimizedCircle.InputBegan:Connect(function(input)
     end
 end)
 
--- Botões de função
 local FreezeCamBtn = Instance.new("TextButton", Main)
-FreezeCamBtn.Size = UDim2.new(1, -40, 0, 60)
-FreezeCamBtn.Position = UDim2.new(0, 20, 0, 50)
-FreezeCamBtn.Text = "FREEZE CAM"
+FreezeCamBtn.Size = UDim2.new(1, -40, 0, 50)
+FreezeCamBtn.Position = UDim2.new(0, 20, 0, 60)
+FreezeCamBtn.Text = "FREEZE CAM: OFF"
 FreezeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
 FreezeCamBtn.TextColor3 = Color3.new(1, 1, 1)
 FreezeCamBtn.Font = Enum.Font.GothamBold
-FreezeCamBtn.TextSize = 16
-FreezeCamBtn.BorderSizePixel = 0
 Instance.new("UICorner", FreezeCamBtn)
 YT.FreezeCamBtn = FreezeCamBtn
 
 local FreeCamBtn = Instance.new("TextButton", Main)
-FreeCamBtn.Size = UDim2.new(1, -40, 0, 60)
+FreeCamBtn.Size = UDim2.new(1, -40, 0, 50)
 FreeCamBtn.Position = UDim2.new(0, 20, 0, 130)
-FreeCamBtn.Text = "FREE CAM"
+FreeCamBtn.Text = "FREE CAM: OFF"
 FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
 FreeCamBtn.TextColor3 = Color3.new(1, 1, 1)
 FreeCamBtn.Font = Enum.Font.GothamBold
-FreeCamBtn.TextSize = 16
-FreeCamBtn.BorderSizePixel = 0
 Instance.new("UICorner", FreeCamBtn)
-YT.FreeCamBtn = FreeCamBtn--[[ YTDEVS - PARTE 2/3 (CÂMERAS) ]]
+YT.FreeCamBtn = FreeCamBtn
 
+CloseBtn.MouseButton1Click:Connect(function()
+    if _G.YTDevs_ResetCamera then _G.YTDevs_ResetCamera() end
+    Screen:Destroy()
+end)local Players = game:GetService("Players")
+local RS = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local TargetGui = LocalPlayer:WaitForChild("PlayerGui")
+if pcall(function() return CoreGui.Name end) then TargetGui = CoreGui end
+
+if TargetGui:FindFirstChild("YtDevsFreeCam") then TargetGui.YtDevsFreeCam:Destroy() end
+
+repeat task.wait() until _G.YTDevs
 local YT = _G.YTDevs
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
 
--- Teclas de atalho (mantidas do original)
-local KEY_FREEZE_CAM = Enum.KeyCode.F
-local KEY_FREE_CAM = Enum.KeyCode.C
+local MobileControls = Instance.new("ScreenGui", TargetGui)
+MobileControls.Name = "YtDevsFreeCam"
+MobileControls.Enabled = false
 
--- Função original para restaurar câmera
-function _G.YTDevs_ResetCamera()
-    if YT.freeCamConnection then
-        YT.freeCamConnection:Disconnect()
-        YT.freeCamConnection = nil
-    end
-    YT.FreezeCamActive = false
-    YT.FreeCamActive = false
-    camera.CameraType = Enum.CameraType.Custom
-    camera.CameraSubject = player.Character and player.Character:FindFirstChild("Humanoid")
-    -- Atualiza cores dos botões
-    if YT.FreezeCamBtn then
-        YT.FreezeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-    end
-    if YT.FreeCamBtn then
-        YT.FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-    end
+local function CreateDroneButton(name, text, pos, size)
+    local btn = Instance.new("TextButton", MobileControls)
+    btn.Name = name
+    btn.Size = size
+    btn.Position = pos
+    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    btn.BackgroundTransparency = 0.4
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    Instance.new("UIStroke", btn).Color = Color3.fromRGB(255, 255, 255)
+    return btn
 end
 
--- FREEZE CAM (congela na frente)
-local function toggleFreezeCam()
-    if YT.FreezeCamActive then
-        _G.YTDevs_ResetCamera()
-    else
-        _G.YTDevs_ResetCamera() -- desativa qualquer outro modo
-        local character = player.Character
-        if character and character:FindFirstChild("Head") then
-            YT.FreezeCamActive = true
-            camera.CameraType = Enum.CameraType.Scriptable
-            local head = character.Head
-            camera.CFrame = CFrame.new(head.Position + (head.CFrame.LookVector * 10), head.Position)
-            YT.FreezeCamBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+local BtnFwd  = CreateDroneButton("Fwd", "▲", UDim2.new(0.15, -25, 0.7, -60), UDim2.new(0, 50, 0, 50))
+local BtnBwd  = CreateDroneButton("Bwd", "▼", UDim2.new(0.15, -25, 0.7, 60), UDim2.new(0, 50, 0, 50))
+local BtnLeft = CreateDroneButton("Left", "◄", UDim2.new(0.15, -85, 0.7, 0), UDim2.new(0, 50, 0, 50))
+local BtnRight = CreateDroneButton("Right", "►", UDim2.new(0.15, 35, 0.7, 0), UDim2.new(0, 50, 0, 50))
+local BtnUp   = CreateDroneButton("Up", "SUBIR", UDim2.new(0.85, -50, 0.65, -35), UDim2.new(0, 100, 0, 50))
+local BtnDown = CreateDroneButton("Down", "DESCER", UDim2.new(0.85, -50, 0.65, 35), UDim2.new(0, 100, 0, 50))
+
+local function SetupTouchMovement(btn, vectorDirection)
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            YT.MoveVector = YT.MoveVector + vectorDirection
         end
-    end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            YT.MoveVector = YT.MoveVector - vectorDirection
+        end
+    end)
 end
 
--- FREE CAM (drone)
-local function toggleFreeCam()
-    if YT.FreeCamActive then
-        _G.YTDevs_ResetCamera()
-    else
-        _G.YTDevs_ResetCamera()
-        YT.FreeCamActive = true
-        camera.CameraType = Enum.CameraType.Scriptable
-        YT.freeCamConnection = RunService.RenderStepped:Connect(function(deltaTime)
-            local moveVector = Vector3.new()
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector += Vector3.new(0, 0, -1) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector += Vector3.new(0, 0, 1) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector += Vector3.new(-1, 0, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector += Vector3.new(1, 0, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.E) then moveVector += Vector3.new(0, 1, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Q) then moveVector += Vector3.new(0, -1, 0) end
+SetupTouchMovement(BtnFwd, Vector3.new(0, 0, -1))
+SetupTouchMovement(BtnBwd, Vector3.new(0, 0, 1))
+SetupTouchMovement(BtnLeft, Vector3.new(-1, 0, 0))
+SetupTouchMovement(BtnRight, Vector3.new(1, 0, 0))
+SetupTouchMovement(BtnUp, Vector3.new(0, 1, 0))
+SetupTouchMovement(BtnDown, Vector3.new(0, -1, 0))
 
-            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-                UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
-                local delta = UserInputService:GetMouseDelta()
-                local newCFrame = camera.CFrame * CFrame.Angles(-math.rad(delta.Y), -math.rad(delta.X), 0)
-                local x, y, z = newCFrame:ToOrientation()
-                camera.CFrame = CFrame.new(newCFrame.Position) * CFrame.Angles(x, y, 0)
-            else
-                UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-            end
+local function ResetCamera()
+    YT.FreeCamActive = false
+    YT.FreezeCamActive = false
+    MobileControls.Enabled = false
+    if YT.freeCamConnection then YT.freeCamConnection:Disconnect() YT.freeCamConnection = nil end
+    Camera.CameraType = Enum.CameraType.Custom
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then Camera.CameraSubject = char.Humanoid end
+    if YT.FreezeCamBtn then YT.FreezeCamBtn.Text = "FREEZE CAM: OFF" YT.FreezeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55) end
+    if YT.FreeCamBtn then YT.FreeCamBtn.Text = "FREE CAM: OFF" YT.FreeCamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55) end
+end
+_G.YTDevs_ResetCamera = ResetCamera
 
-            if moveVector.Magnitude > 0 then
-                moveVector = moveVector.Unit
-                camera.CFrame = camera.CFrame + (camera.CFrame:VectorToWorldSpace(moveVector) * (YT.cameraSpeed * deltaTime))
+task.spawn(function()
+    while task.wait(0.5) do
+        if not YT.FreezeCamBtn then break end
+        
+        YT.FreezeCamBtn.MouseButton1Click:Connect(function()
+            if YT.FreezeCamActive then ResetCamera() else
+                ResetCamera()
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChild("Head") then
+                    YT.FreezeCamActive = true
+                    YT.FreezeCamBtn.Text = "FREEZE CAM: ON"
+                    YT.FreezeCamBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                    Camera.CameraType = Enum.CameraType.Scriptable
+                    local head = char.Head
+                    Camera.CFrame = CFrame.new(head.Position + (head.CFrame.LookVector * 8), head.Position)
+                end
             end
         end)
-        YT.FreeCamBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    end
-end
 
--- Conexão dos botões da GUI
-YT.FreezeCamBtn.MouseButton1Click:Connect(toggleFreezeCam)
-YT.FreeCamBtn.MouseButton1Click:Connect(toggleFreeCam)
-
--- Atalhos de teclado (originais)
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == KEY_FREEZE_CAM then
-        toggleFreezeCam()
-    elseif input.KeyCode == KEY_FREE_CAM then
-        toggleFreeCam()
-    end
-end)--[[ YTDEVS - PARTE 3/3 (FINALIZAÇÃO) ]]
-
-local YT = _G.YTDevs
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
--- Garantir que a câmera seja resetada quando o personagem morrer/renascer
-player.CharacterAdded:Connect(function()
-    if YT.FreezeCamActive or YT.FreeCamActive then
-        _G.YTDevs_ResetCamera()
+        YT.FreeCamBtn.MouseButton1Click:Connect(function()
+            if YT.FreeCamActive then ResetCamera() else
+                ResetCamera()
+                YT.FreeCamActive = true
+                YT.FreeCamBtn.Text = "FREE CAM: ON"
+                YT.FreeCamBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+                Camera.CameraType = Enum.CameraType.Scriptable
+                MobileControls.Enabled = true
+                YT.freeCamConnection = RS.RenderStepped:Connect(function(dt)
+                    if YT.MoveVector.Magnitude > 0 then
+                        local direction = Camera.CFrame:VectorToWorldSpace(YT.MoveVector.Unit)
+                        Camera.CFrame = Camera.CFrame + (direction * (YT.cameraSpeed * dt))
+                    end
+                end)
+            end
+        end)
+        break
     end
 end)
